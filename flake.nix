@@ -3,7 +3,7 @@
 
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/23.11";
+    nixpkgs.url = "github:nixos/nixpkgs/24.11-pre";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -18,6 +18,8 @@
         default = pkgs.mkShell {
           packages = with pkgs; [
             python3
+            go
+            gnumake
           ];
         };
       };
