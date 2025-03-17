@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
     "log"
 	"io"
+	"io/ioutil"
     "os"
 	"sort"
 )
@@ -42,19 +43,8 @@ func hashFile(filename string) [20]byte {
 	}
 	return sha1.Sum(bs)
 }
-func main() {
-	// TODO: check / set CLI subcommands 
-	// set: store the file in the store
-	// check: (maybe find another name) check if the file is in the store, if so check the hashes of the deps, return some exit code based on the result
 
-	var resultFlag = flag.String("result", "foo", "help message for flag n")
-	flag.Parse()
-    filenames := flag.Args()
-	log.Println("result: ", *resultFlag)
-	log.Println("filenames: ", filenames)
-    createNeStore()
-
-	result := *resultFlag
+func store(result string, filenames []string) {
 	sort.Slice(filenames, func(i, j int) bool {
 		return filenames[i] < filenames[j]
 	})
@@ -82,4 +72,70 @@ func main() {
 	if err := os.Symlink(folderName + "/data", result); err != nil { 
         log.Fatal(err) 
     } 
+}
+
+
+func importJSONInfo(filename string) map[string]interface{} {
+	content, err := ioutil.ReadFile(filename)
+    if err != nil {
+        log.Fatal("Error when opening file: ", err)
+    }
+	var payload map[string]interface{}
+    err = json.Unmarshal(content, &payload)
+    if err != nil {
+        log.Fatal("Error during Unmarshal(): ", err)
+    }
+	return payload
+}
+
+func isSameInfo(filename string) bool {
+	payload := importJSONInfo(".ne/store/" + filename + "/info.json")
+	for key, value := range payload {
+		hash := hashFile(key)
+		log.Printf("%s = %s, %x\n", key, value, hash)
+		if hex.EncodeToString(hash[:]) != value {
+			return false
+		}
+	}
+	return true
+}
+
+func check(filename string) bool {
+	files, err := os.ReadDir(".ne/store")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, file := range files {
+		if file.Name()[41:] == filename && isSameInfo(file.Name()) { return true }
+	}
+	return false
+}
+
+func main() {
+	// TODO: Config file
+	// TODO: find the store
+	storeCmd := flag.NewFlagSet("store", flag.ExitOnError)
+	var resultFlag = storeCmd.String("result", "foo", "help message for flag n")
+
+	checkCmd := flag.NewFlagSet("check", flag.ExitOnError)
+	var filename = checkCmd.String("file", "foo", "help message for flag n")
+
+    createNeStore()
+
+   	switch os.Args[1] {
+    case "store":
+        storeCmd.Parse(os.Args[2:])
+		filenames := storeCmd.Args()
+		store(*resultFlag, filenames)
+    case "check":
+        checkCmd.Parse(os.Args[2:])
+		if check(*filename) {
+			os.Exit(0)
+		} else {
+			os.Exit(1)
+		}
+    default:
+        log.Fatalf("[ERROR] unknown subcommand '%s', see help for more details.", os.Args[1])
+    } 
+	os.Exit(0)
 }
